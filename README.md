@@ -9,6 +9,10 @@ Inference by classification ONNX model
 pip install git+https://github.com/vaik-info/vaik-classification-onnx-inference.git
 ```
 
+## Requirement
+- onnx model input shape
+  - (batch, height, width, channel)
+
 ## Usage
 
 ### Example
