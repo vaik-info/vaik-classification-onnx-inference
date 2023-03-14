@@ -6,7 +6,7 @@ import numpy as np
 
 class OnnxModel:
     def __init__(self, input_saved_model_path: str = None, classes: Tuple = None):
-        self.model, self.mean, self.std = self.__load(input_saved_model_path)
+        self.model = self.__load(input_saved_model_path)
         self.model_input_shape = tuple(self.model.get_inputs()[0].shape)
         self.input_name = self.model.get_inputs()[0].name
         self.model_output_shape = tuple(self.model.get_outputs()[0].shape)
@@ -15,13 +15,10 @@ class OnnxModel:
 
     def __load(self, input_saved_model_path):
         model = rt.InferenceSession(input_saved_model_path, providers=rt.get_available_providers())
-        meta = model.get_modelmeta()
-        mean = np.array(eval(meta.custom_metadata_map['normalize_mean'])).reshape(-1, 1, 1)
-        std = np.array(eval(meta.custom_metadata_map['normalize_std'])).reshape(-1, 1, 1)
-        return model, mean, std
+        return model
 
     def inference(self, input_image_list: List[np.ndarray], batch_size: int = 8) -> Tuple[List[Dict], Dict]:
-        resized_image_array = self.__preprocess_image_list(input_image_list, self.model_input_shape[2:4])
+        resized_image_array = self.__preprocess_image_list(input_image_list, self.model_input_shape[1:3])
         raw_pred = self.__inference(resized_image_array, batch_size)
         output = self.__output_parse(raw_pred)
         return output, raw_pred
@@ -33,10 +30,9 @@ class OnnxModel:
         output_tensor = np.zeros((resize_input_tensor.shape[0], self.model_output_shape[-1]))
         for index in range(0, resize_input_tensor.shape[0], batch_size):
             batch = resize_input_tensor[index:index + batch_size, :, :, :]
-            batch_pad = np.zeros(((batch_size, ) + self.model_input_shape[2:4] + (self.model_input_shape[1], )), dtype=np.float32)
+            batch_pad = np.zeros(((batch_size, ) + self.model_input_shape[1:]), dtype=np.float32)
             batch_pad[:batch.shape[0], :, :, :] = batch
-            batch_pad_normalized = self.__normalize(batch_pad)
-            raw_pred = self.model.run([self.output_name], {self.input_name: batch_pad_normalized})
+            raw_pred = self.model.run([self.output_name], {self.input_name: batch_pad})
             output_tensor[index:index + batch.shape[0], :] = np.stack(raw_pred[:batch.shape[0]], axis=0)
         return output_tensor
 
@@ -67,11 +63,6 @@ class OnnxModel:
         resize_image = np.array(resize_pil_image)
         output_image[:resize_image.shape[0], :resize_image.shape[1], :] = resize_image
         return output_image
-
-    def __normalize(self, batch_pad):
-        batch_pad = np.transpose(batch_pad, [0, 3, 1, 2]) / 255.
-        batch_pad_normalized = (batch_pad - self.mean) / self.std
-        return batch_pad_normalized.astype(np.float32)
 
     def __output_parse(self, pred: np.ndarray) -> List[Dict]:
         output_dict_list = []
