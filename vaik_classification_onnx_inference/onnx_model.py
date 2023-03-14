@@ -69,7 +69,7 @@ class OnnxModel:
         return output_image
 
     def __normalize(self, batch_pad):
-        batch_pad = np.transpose(batch_pad, [0, 3, 1, 2])
+        batch_pad = np.transpose(batch_pad, [0, 3, 1, 2]) / 255.
         batch_pad_normalized = (batch_pad - self.mean) / self.std
         return batch_pad_normalized.astype(np.float32)
 
